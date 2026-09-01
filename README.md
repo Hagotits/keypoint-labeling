@@ -1,16 +1,126 @@
-# React + Vite
+# Skeleton Keypoint Labeler
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+새(조류) 가림(occlusion) 상황을 위한 키포인트 라벨링 툴.
+바운딩 박스를 그리면 기준 스켈레톤이 자동 배치되고, 포인트만 옮겨서 라벨링합니다.
 
-Currently, two official plugins are available:
+## 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Node 20.19 이상이 필요합니다 (`node -v`로 확인).
 
-## React Compiler
+```bash
+git clone <이 저장소 주소>
+cd key_point
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+터미널에 뜨는 주소(기본 http://localhost:5173)로 접속하면 됩니다.
 
-## Expanding the Oxlint configuration
+## 저장
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+작업 내용은 **자동 저장**됩니다. 브라우저를 닫아도 사라지지 않습니다.
+
+```
+project/
+  <프로젝트 이름>/
+    project.json     메타 + 스켈레톤 정의 + 이미지 목록 + 어노테이션
+    images/          업로드한 원본 이미지
+```
+
+`project/` 폴더는 각자 로컬에만 있고 저장소에는 올라가지 않습니다(`.gitignore`).
+결과 전달은 **JSON 내보내기**로 합니다.
+
+## 사용 순서
+
+1. **프로젝트 생성** — 이름을 넣으면 `project/<이름>/` 폴더가 만들어집니다.
+   이미 만든 프로젝트는 목록에서 클릭해 이어서 작업합니다.
+2. **기준 스켈레톤 그리기** — 캔버스를 클릭해 포인트를 찍으면 선이 이어집니다.
+   포인트 이름은 라벨링 가이드와 **똑같이** 지어주세요 (`head`, `body`,
+   `left_wing_root`, … `tail`). 좌우 반전 기능이 이 이름으로 짝을 찾습니다.
+3. **이미지 업로드** — 파일 또는 폴더 단위로 선택. 프로젝트 폴더로 복사됩니다.
+4. **라벨링** — 개체에 박스를 드래그하면 스켈레톤이 배치됩니다. 포인트를 옮겨 맞춥니다.
+5. **JSON 내보내기** — 좌측 하단 버튼.
+
+## 조작
+
+드래그로 박스를 그릴 때 **시작 지점이 스켈레톤의 위쪽(머리 방향)** 이 됩니다.
+
+| 조작 | 동작 |
+|---|---|
+| 드래그 | 박스 그리기 |
+| 박스 경계를 반대편 너머로 드래그 | **좌우/상하 반전** (`left_`↔`right_` 라벨도 함께 교환) |
+| `A` + 드래그 | 박스 복사 |
+| `S` / `D` | 복사 / 붙여넣기 (다른 이미지에도 붙여넣기 가능) |
+| `Z`, `⌘/Ctrl + Z` | 되돌리기 |
+| `Tab` | 박스 고정 / 해제 (고정하면 박스는 안 움직이고 키포인트만 수정) |
+| `←` `→` `Enter` | 이전 / 다음 이미지 |
+| 포인트 클릭 후 `0` `1` `2` | 가시성 지정 (2 보임 · 1 가려짐 · 0 없음) |
+| `V` | 가시성 순환 |
+| `Delete` | 포인트 v=0 / 박스 삭제 |
+| 휠 | 확대 · 축소 |
+| `Space` + 드래그, 휠버튼 드래그 | 화면 이동 |
+| `Esc` | 선택 해제 |
+
+단축키는 툴바의 **단축키** 버튼에서 각자 편한 키로 바꿀 수 있습니다 (브라우저에 저장).
+
+### 집중 모드
+
+박스를 선택하면 **그 영역만 원본 밝기로 남고 나머지는 어두워지며, 다른 객체의 박스와
+키포인트는 숨겨집니다.** 개체가 겹쳐 있는 장면에서 지금 보는 개체만 보고 판단하기 위한
+것입니다. 툴바에서 끌 수 있습니다.
+
+### 진행 표시
+
+이미지 목록의 별은 라벨이 하나라도 있으면 자동으로 반 별이 됩니다.
+다 했으면 별을 클릭해 꽉 찬 별(완료)로 표시할 수 있습니다. 선택 기능이라 안 써도 됩니다.
+
+## 내보내기 JSON 형식
+
+```json
+{
+  "project": "프로젝트 이름",
+  "keypoints": ["head", "body", "..."],
+  "visibility": { "0": "not labeled, x/y null", "1": "occluded, estimated", "2": "visible" },
+  "skeleton": [["head", "body"], ["body", "tail"]],
+  "images": [
+    {
+      "name": "016.jpg",
+      "width": 4344,
+      "height": 2676,
+      "annotations": [
+        {
+          "bbox": [x, y, w, h],
+          "keypoints": [{ "name": "head", "x": 100, "y": 200, "v": 2 }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`v=0`인 포인트의 `x`, `y`는 `null`입니다. 고정 여부·완료 표시 같은 툴 내부 값은
+내보내기에 포함되지 않습니다.
+
+**JSON 불러오기**로 다시 읽어올 수 있습니다. 이미 라벨이 있는 이미지가 겹치면
+덮어쓸지 합칠지 물어봅니다. 예전 툴에서 만든, 키포인트가 박스 밖으로 나간 데이터는
+불러올 때 박스를 키포인트에 맞춰 자동으로 넓힙니다.
+
+## 구조
+
+Vite dev 서버에 파일 저장 API를 붙인 구조라 별도 백엔드가 없습니다.
+`npm run dev` 하나로 프론트와 저장이 같이 동작합니다.
+
+```
+server/projectApi.js   프로젝트 CRUD + 이미지 저장/서빙 API
+vite.config.js         위 API를 dev 서버 미들웨어로 연결
+src/components/        Labeler(라벨링) · LabelSetup(스켈레톤) · ProjectSetup(프로젝트)
+src/keymap.js          단축키 정의와 저장
+src/theme.js           화이트 / 블랙 모드
+```
+
+저장 기능은 dev 서버에서 동작합니다. `npm run build`로 만든 정적 파일만 띄우면
+저장 API가 없어 동작하지 않습니다.
+
+## 앞으로
+
+키포인트 자동 예측 모델 연동 계획은 [`memo.md`](./memo.md)에 정리해 두었습니다.
