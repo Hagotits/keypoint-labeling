@@ -1,15 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import { KP_COLORS, uid, loadImageFiles } from '../utils'
+import { KP_COLORS, uid, importImageFiles } from '../utils'
+import SaveBadge from './SaveBadge'
+import ThemeToggle from './ThemeToggle'
 
 const CANVAS = 400 // 템플릿 캔버스 좌표계 크기
 
-export default function LabelSetup({ projectName, onDone }) {
-  const [defs, setDefs] = useState([]) // {id, name, color, tx, ty}
-  const [edges, setEdges] = useState([]) // [defIdA, defIdB]
+export default function LabelSetup({
+  project,
+  keypointDefs: defs, // {id, name, color, tx, ty}
+  edges, // [defIdA, defIdB]
+  images,
+  saveState,
+  theme,
+  onToggleTheme,
+  onChange,
+  onBack,
+  onDone,
+}) {
   const [selected, setSelected] = useState(null) // 선 연결용 선택된 포인트 id
   const [cursor, setCursor] = useState(null) // 자동 연결 미리보기용 커서 위치
-  const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // 상태는 프로젝트(App)가 들고 있고 저장까지 담당한다
+  const apply = (key, next) => (cur) => ({
+    [key]: typeof next === 'function' ? next(cur[key]) : next,
+  })
+  const setDefs = (next) => onChange(apply('keypointDefs', next))
+  const setEdges = (next) => onChange(apply('edges', next))
+  const setImages = (next) => onChange(apply('images', next))
 
   const svgRef = useRef(null)
   const dragRef = useRef(null)
@@ -108,8 +127,13 @@ export default function LabelSetup({ projectName, onDone }) {
   const handleFiles = async (fileList) => {
     if (!fileList?.length) return
     setLoading(true)
-    const loaded = await loadImageFiles(fileList)
-    setImages((prev) => [...prev, ...loaded])
+    setError('')
+    try {
+      const loaded = await importImageFiles(project.slug, fileList)
+      setImages((prev) => [...prev, ...loaded])
+    } catch (err) {
+      setError(`이미지 저장 실패: ${err.message}`)
+    }
     setLoading(false)
   }
 
@@ -119,10 +143,21 @@ export default function LabelSetup({ projectName, onDone }) {
   return (
     <div className="center-screen">
       <div className="card wide setup-card">
-        <h1>{projectName}</h1>
-        <p className="muted">
-          기준 스켈레톤을 캔버스에 그리고, 라벨링할 이미지를 업로드하세요.
-        </p>
+        <div className="card-head">
+          <div>
+            <h1>{project.name}</h1>
+            <p className="muted">
+              기준 스켈레톤을 캔버스에 그리고, 라벨링할 이미지를 업로드하세요.
+              <br />
+              <code>project/{project.slug}/</code> 에 자동 저장됩니다.
+            </p>
+          </div>
+          <div className="row">
+            <SaveBadge state={saveState} />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            <button className="btn" onClick={onBack}>프로젝트 목록</button>
+          </div>
+        </div>
 
         <section className="setup-section">
           <h2>1. 기준 스켈레톤 그리기</h2>
@@ -235,9 +270,10 @@ export default function LabelSetup({ projectName, onDone }) {
               폴더 선택
             </button>
             <span className="muted small">
-              {loading ? '불러오는 중…' : `${images.length}장 업로드됨`}
+              {loading ? '저장하는 중…' : `${images.length}장 저장됨`}
             </span>
           </div>
+          {error && <p className="error-text">{error}</p>}
           <input
             ref={fileRef}
             type="file"
@@ -275,7 +311,7 @@ export default function LabelSetup({ projectName, onDone }) {
         <button
           className="btn primary big"
           disabled={!ready}
-          onClick={() => onDone(defs, edges, images)}
+          onClick={onDone}
         >
           라벨링 시작
         </button>
