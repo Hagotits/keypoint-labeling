@@ -1,4 +1,22 @@
-# Skeleton Keypoint Labeler
+# Keypoint Labeling — axdc 저장판
+
+> 예전 `key_js/key_point`와 똑같이 동작하는 키포인트 라벨링 툴이고, **작업 데이터는 Mac이 아니라 axdc_gpu에 저장**됩니다.
+> 이 폴더에는 코드만 있습니다.
+>
+> - 실행: `npm run dev` → http://localhost:5174 (기존판 5173과 동시에 띄워도 됨)
+> - 저장: `axdc_gpu:~/P/labeling_store/` — SSH(`~/.ssh/config`의 `axdc_gpu`)로 읽고 씀. 터널·포트 포워딩 없음.
+>   - `project/<이름>/` 라벨링 프로젝트 (구조는 기존과 같음)
+>   - `raw/files/`, `raw/index.json` 원본 보관소 (업로드·중복 검사 화면)
+> - 바꾼 파일: `server/remoteFs.js`(새), `server/rawApi.js`(새), `server/projectApi.js`(fs → 원격),
+>   `vite.config.js`, `src/components/RawUpload.jsx`(새), `src/dedup.js`(새), `src/App.jsx`, `ProjectSetup.jsx`, `api.js`, `index.css`
+> - 저장소 위치 바꾸기: `LABEL_STORE_HOST=axdc_gpu LABEL_STORE_ROOT=P/다른경로 npm run dev`
+>
+> **원본 업로드 · 중복 검사**: 첫 화면의 버튼. 파일 내용이 같으면(SHA-256) 자동으로 건너뛰고,
+> 크기 변경·재압축된 같은 사진(dHash 차이 ≤ 기준값, 기본 10/64)은 '유사'로 표시해 나란히 비교한 뒤 직접 고릅니다.
+> 좌우 반전·회전·크롭된 사진은 잡지 못합니다.
+
+---
+
 
 새(조류) 가림(occlusion) 상황을 위한 키포인트 라벨링 툴.
 바운딩 박스를 그리면 기준 스켈레톤이 자동 배치되고, 포인트만 옮겨서 라벨링합니다.
@@ -48,7 +66,8 @@ project/
 | 조작 | 동작 |
 |---|---|
 | 드래그 | 박스 그리기 |
-| 박스 경계를 반대편 너머로 드래그 | **좌우/상하 반전** (`left_`↔`right_` 라벨도 함께 교환) |
+| 박스 안쪽 드래그 / 경계 드래그 | 박스 이동 / 크기 조절 (**키포인트는 그대로**) |
+| 포인트 드래그 | 포인트 이동 (포인트는 직접 잡을 때만 움직임) |
 | `A` + 드래그 | 박스 복사 |
 | `S` / `D` | 복사 / 붙여넣기 (다른 이미지에도 붙여넣기 가능) |
 | `Z`, `⌘/Ctrl + Z` | 되돌리기 |

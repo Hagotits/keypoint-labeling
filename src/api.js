@@ -43,3 +43,24 @@ export const uploadImage = (slug, file, name) =>
       body: file,
     }
   )
+
+// ---------- 원본 보관소 (server/rawApi.js와 짝) ----------
+
+export const getStorage = () => req('/api/storage')
+
+export const listRaw = () => req('/api/raw').then((d) => d.items)
+
+// 원본 하나 저장. 같은 SHA-256이 이미 있으면 409 (err.status === 409)
+export const uploadRaw = (file, meta) => {
+  const q = new URLSearchParams({
+    name: file.name,
+    dhash: meta.dhash ?? '',
+    width: String(meta.width ?? ''),
+    height: String(meta.height ?? ''),
+  })
+  return req(`/api/raw?${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: file,
+  }).then((d) => d.item)
+}

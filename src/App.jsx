@@ -2,18 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import ProjectSetup from './components/ProjectSetup'
 import LabelSetup from './components/LabelSetup'
 import Labeler from './components/Labeler'
-import { loadProject, saveProject } from './api'
+import RawUpload from './components/RawUpload'
+import { getStorage, loadProject, saveProject } from './api'
 import { applyTheme, loadTheme } from './theme'
 
 const EMPTY = { keypointDefs: [], edges: [], images: [], annotations: {}, imageStatus: {} }
 
-// step: 'project' → 'setup' → 'label'
+// step: 'project' → 'setup' → 'label'   (또는 'project' → 'raw': 원본 업로드·중복 검사)
 export default function App() {
   const [step, setStep] = useState('project')
   const [project, setProject] = useState(null) // 서버에서 불러온 프로젝트 메타
   const [data, setData] = useState(EMPTY)
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [theme, setTheme] = useState(loadTheme)
+  const [storage, setStorage] = useState(null) // { host, root } — 원격 저장소 위치
+
+  useEffect(() => {
+    getStorage().then(setStorage).catch(() => {})
+  }, [])
 
   useEffect(() => {
     applyTheme(theme)
@@ -70,7 +76,21 @@ export default function App() {
   if (step === 'project') {
     return (
       <div className="app">
-        <ProjectSetup onOpen={handleOpen} theme={theme} onToggleTheme={toggleTheme} />
+        <ProjectSetup
+          onOpen={handleOpen}
+          onOpenRaw={() => setStep('raw')}
+          storage={storage}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      </div>
+    )
+  }
+
+  if (step === 'raw') {
+    return (
+      <div className="app">
+        <RawUpload storage={storage} theme={theme} onToggleTheme={toggleTheme} onBack={() => setStep('project')} />
       </div>
     )
   }

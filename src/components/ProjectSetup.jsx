@@ -12,7 +12,7 @@ const fmtDate = (iso) => {
   ).padStart(2, '0')}`
 }
 
-export default function ProjectSetup({ onOpen, theme, onToggleTheme }) {
+export default function ProjectSetup({ onOpen, onOpenRaw, storage, theme, onToggleTheme }) {
   const [name, setName] = useState('')
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -55,11 +55,19 @@ export default function ProjectSetup({ onOpen, theme, onToggleTheme }) {
           <div>
             <h1>Skeleton Keypoint Labeler</h1>
             <p className="muted">
-              프로젝트는 <code>project/&lt;이름&gt;/</code> 폴더에 저장됩니다.
+              프로젝트는{' '}
+              <code>
+                {storage ? `${storage.host}:~/${storage.root}` : '원격 저장소'}/project/&lt;이름&gt;/
+              </code>{' '}
+              에 저장됩니다.
             </p>
           </div>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
+
+        <button className="btn" type="button" onClick={onOpenRaw}>
+          원본 업로드 · 중복 검사
+        </button>
 
         <form onSubmit={submit}>
           <label className="field">
@@ -80,7 +88,7 @@ export default function ProjectSetup({ onOpen, theme, onToggleTheme }) {
 
         <section className="project-list-section">
           <h2>저장된 프로젝트</h2>
-          {loading && <p className="muted small">불러오는 중…</p>}
+          {loading && <p className="muted small">불러오는 중… (서버 연결)</p>}
           {!loading && projects.length === 0 && (
             <p className="muted small">아직 저장된 프로젝트가 없습니다.</p>
           )}

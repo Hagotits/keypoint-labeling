@@ -1,7 +1,7 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import path from 'node:path/posix'
+import { REMOTE_ROOT, putCached, readCached, remoteFs as fs } from './remoteFs.js'
 
-// project/<프로젝트 이름>/ 아래에 프로젝트가 저장된다.
+// 원격 저장소(axdc_gpu:~/P/labeling_store) 의 project/<프로젝트 이름>/ 아래에 저장된다.
 //   project.json  … 메타 + 스켈레톤 정의 + 이미지 목록 + 어노테이션
 //   images/       … 업로드한 원본 이미지
 const META = 'project.json'
@@ -46,8 +46,8 @@ const readBody = (req) =>
 
 const exists = (p) => fs.access(p).then(() => true, () => false)
 
-export function createProjectApi(rootDir) {
-  const base = path.join(rootDir, 'project')
+export function createProjectApi() {
+  const base = path.join(REMOTE_ROOT, 'project')
   const dirOf = (slug) => path.join(base, slug)
 
   // slug는 항상 한 단계 폴더 이름이어야 한다 (경로 탈출 방지)
@@ -60,9 +60,8 @@ export function createProjectApi(rootDir) {
 
   const writeMeta = async (slug, data) => {
     const file = path.join(dirOf(slug), META)
-    const tmp = `${file}.tmp`
-    await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8')
-    await fs.rename(tmp, file) // 저장 중 크래시로 파일이 깨지지 않도록
+    // 임시 파일에 쓰고 mv — 저장 중 끊겨도 project.json이 깨지지 않도록
+    await fs.writeFileAtomic(file, JSON.stringify(data, null, 2), 'utf8')
   }
 
   const listProjects = async () => {
@@ -120,10 +119,11 @@ export function createProjectApi(rootDir) {
       }
       const file = path.join(dirOf(parts[0]), IMG_DIR, path.basename(parts[2]))
       try {
-        const buf = await fs.readFile(file)
+        const buf = await readCached(file)
         res.statusCode = 200
         res.setHeader('Content-Type', MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream')
-        res.setHeader('Cache-Control', 'no-cache')
+        // 업로드된 이미지는 덮어쓰지 않으므로(같은 이름이면 _1 붙임) 브라우저가 캐시해도 된다
+        res.setHeader('Cache-Control', 'private, max-age=86400')
         return res.end(buf)
       } catch {
         return send(res, 404, { error: 'not found' })
@@ -205,6 +205,7 @@ export function createProjectApi(rootDir) {
         const file = await uniqueFileName(slug, url.searchParams.get('name'))
         await fs.mkdir(path.join(dirOf(slug), IMG_DIR), { recursive: true })
         await fs.writeFile(path.join(dirOf(slug), IMG_DIR, file), body)
+        putCached(path.join(dirOf(slug), IMG_DIR, file), body)
         return send(res, 201, {
           file,
           url: `/project-files/${slug}/${IMG_DIR}/${encodeURIComponent(file)}`,

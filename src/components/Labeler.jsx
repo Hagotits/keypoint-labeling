@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { buildFlipPairs, mirrorKeypoints, uid, importImageFiles } from '../utils'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { uid, importImageFiles } from '../utils'
 import SaveBadge from './SaveBadge'
 import KeySettings from './KeySettings'
 import StatusStar from './StatusStar'
@@ -151,9 +151,6 @@ export default function Labeler({
   const holderRef = useRef(null)
   const clipRef = useRef(null) // 복사한 객체 (이미지 사이에도 붙여넣기 가능)
   const historyRef = useRef([]) // 되돌리기용 이전 어노테이션 스냅샷
-
-  // 이름으로 찾은 left/right 키포인트 짝 (반전할 때 라벨을 맞바꾸는 데 쓴다)
-  const flipPairs = useMemo(() => buildFlipPairs(keypointDefs), [keypointDefs])
 
   const image = images.find((im) => im.id === currentId) || images[0]
   const instances = annotations[image?.id] || []
@@ -319,6 +316,7 @@ export default function Labeler({
     dragRef.current = {
       mode: 'move',
       instId: copy.id,
+      withPoints: true, // 복사본은 키포인트까지 통째로 옮긴다
       start: toImageCoords(e),
       orig: {
         x: copy.x,
@@ -494,8 +492,6 @@ export default function Labeler({
       // 잡은 지점과 포인트 중심의 오프셋을 유지해 드래그 시 점이 커서로 튀지 않게
       offX: (k?.x ?? p.x) - p.x,
       offY: (k?.y ?? p.y) - p.y,
-      // 키포인트는 자기 박스를 벗어날 수 없다
-      box: { x: inst.x, y: inst.y, w: inst.w, h: inst.h },
       hist: { snapshot: annotations, committed: false },
     }
     setSelectedId(inst.id)
@@ -535,7 +531,7 @@ export default function Labeler({
       const bound = fitsInImage(o) // 이미 밖으로 나간 박스는 경계로 제한하지 않음
       const lim = (v, lo, hi) => (bound ? clamp(v, lo, hi) : v)
 
-      // 잡은 변을 반대편 너머로 끌면 부호가 뒤집히면서 박스가 반전된다
+      // 잡은 변을 반대편 너머로 끌어도 박스 좌표만 정규화한다
       let left = o.x
       let right = o.x + o.w
       let top = o.y
@@ -545,27 +541,15 @@ export default function Labeler({
       if (drag.handle.includes('s')) bottom = lim(bottom + dy, 0, image.height)
       if (drag.handle.includes('n')) top = lim(top + dy, 0, image.height)
 
-      const flipX = right < left
-      const flipY = bottom < top
       const box = {
         x: Math.min(left, right),
         y: Math.min(top, bottom),
         w: Math.abs(right - left),
         h: Math.abs(bottom - top),
       }
-      drag.flipped = flipX !== flipY // 반전 안내 문구용
+      // 박스 크기만 바꾸고 키포인트는 제자리에 둔다
       setInstances((cur) =>
-        cur.map((inst) =>
-          inst.id === drag.instId
-            ? {
-                ...inst,
-                ...box,
-                // 키포인트도 박스 상대 위치를 유지하며 함께 스케일/반전.
-                // 한 축만 뒤집었으면 left/right 짝의 라벨도 서로 바뀐다.
-                keypoints: mirrorKeypoints(o.keypoints, o, box, flipX, flipY, flipPairs),
-              }
-            : inst
-        )
+        cur.map((inst) => (inst.id === drag.instId ? { ...inst, ...box } : inst))
       )
     } else if (drag.mode === 'move') {
       commitDragHistory(drag)
@@ -585,18 +569,22 @@ export default function Labeler({
                 ...inst,
                 x: nx,
                 y: ny,
-                keypoints: drag.orig.keypoints.map((k) =>
-                  k.x == null ? { ...k } : { ...k, x: k.x + dx, y: k.y + dy }
-                ),
+                // 박스만 옮긴다. 키포인트는 직접 잡아서 옮길 때만 움직인다 (복사 드래그 제외)
+                ...(drag.withPoints && {
+                  keypoints: drag.orig.keypoints.map((k) =>
+                    k.x == null ? { ...k } : { ...k, x: k.x + dx, y: k.y + dy }
+                  ),
+                }),
               }
             : inst
         )
       )
     } else if (drag.mode === 'point') {
       commitDragHistory(drag)
-      const b = drag.box
-      const x = clamp(p.x + drag.offX, b.x, b.x + b.w)
-      const y = clamp(p.y + drag.offY, b.y, b.y + b.h)
+      // 박스와 키포인트는 따로 움직이므로 박스가 아니라 이미지 경계로만 제한한다
+      // (박스를 줄여둔 상태에서 포인트를 잡으면 박스 안으로 튀지 않게)
+      const x = clamp(p.x + drag.offX, 0, image.width)
+      const y = clamp(p.y + drag.offY, 0, image.height)
       setInstances((cur) =>
         cur.map((inst) =>
           inst.id === drag.instId
